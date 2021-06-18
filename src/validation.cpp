@@ -32,6 +32,8 @@
 #include <random.h>
 #include <reverse_iterator.h>
 #include <script/script.h>
+#include <script/serverchecker.h>
+#include <script/standard.h>
 #include <script/sigcache.h>
 #include <shutdown.h>
 #include <signet.h>
@@ -53,12 +55,17 @@
 
 #include <numeric>
 #include <optional>
+
+#include <komodo_validation015.h>
+
 #include <string>
 
 #include <boost/algorithm/string/replace.hpp>
 
 #define MICRO 0.000001
 #define MILLI 0.001
+
+char ASSETCHAINS_SYMBOL[65] = { "CHIPS" };
 
 /**
  * An extra transaction can be added to a package, as long as it only has one
@@ -3026,6 +3033,12 @@ static bool CheckBlockHeader(const CBlockHeader& block, BlockValidationState& st
     // Check proof of work matches claimed amount
     if (fCheckPOW && !CheckProofOfWork(block.GetHash(), block.nBits, consensusParams))
         return state.Invalid(BlockValidationResult::BLOCK_INVALID_HEADER, "high-hash", "proof of work failed");
+
+    if (::ChainActive().Height() > consensusParams.nAdaptivePoWActivationThreshold) {
+        if (block.GetBlockTime() > GetAdjustedTime() + 4) {
+            return state.Invalid(BlockValidationResult::BLOCK_INVALID_HEADER, "block-from-future", "CheckBlockHeader block from future");
+        }
+    }
 
     return true;
 }

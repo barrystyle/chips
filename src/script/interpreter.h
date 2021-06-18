@@ -7,6 +7,7 @@
 #define BITCOIN_SCRIPT_INTERPRETER_H
 
 #include <hash.h>
+#include <script/cc.h>
 #include <script/script_error.h>
 #include <span.h>
 #include <primitives/transaction.h>
@@ -248,6 +249,14 @@ public:
          return false;
     }
 
+    virtual int CheckCryptoCondition(
+        const std::vector<unsigned char>& condBin,
+        const std::vector<unsigned char>& ffillBin,
+        const CScript& scriptCode) const
+    {
+        return false;
+    }
+
     virtual ~BaseSignatureChecker() {}
 };
 
@@ -266,7 +275,7 @@ bool SignatureHashSchnorr(uint256& hash_out, const ScriptExecutionData& execdata
 template <class T>
 class GenericTransactionSignatureChecker : public BaseSignatureChecker
 {
-private:
+protected:
     const T* txTo;
     const MissingDataBehavior m_mdb;
     unsigned int nIn;

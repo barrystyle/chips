@@ -147,6 +147,14 @@ std::shared_ptr<CWallet> GetWallet(const std::string& name)
     return nullptr;
 }
 
+std::shared_ptr<CWallet> GetMainWallet()
+{
+    LOCK(cs_wallets);
+    for (const auto& wallet : vpwallets)
+        return wallet;
+    return nullptr;
+}
+
 std::unique_ptr<interfaces::Handler> HandleLoadWallet(LoadWalletFn load_wallet)
 {
     LOCK(cs_wallets);
