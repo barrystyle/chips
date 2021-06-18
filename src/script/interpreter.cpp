@@ -1238,6 +1238,38 @@ bool EvalScript(std::vector<std::vector<unsigned char> >& stack, const CScript& 
                 }
                 break;
 
+                case OP_CHECKCRYPTOCONDITION:
+                case OP_CHECKCRYPTOCONDITIONVERIFY:
+                {
+                    if (!IsCryptoConditionsEnabled()) {
+                        goto INTERPRETER_DEFAULT;
+                    }
+
+                    if (stack.size() < 2)
+                        return set_error(serror, SCRIPT_ERR_INVALID_STACK_OPERATION);
+
+                    int fResult = checker.CheckCryptoCondition(stacktop(-1), stacktop(-2), script);
+
+                    if (fResult == -1) {
+                        return set_error(serror, SCRIPT_ERR_CRYPTOCONDITION_INVALID_FULFILLMENT);
+                    }
+
+                    popstack(stack);
+                    popstack(stack);
+
+                    stack.push_back(fResult == 1 ? vchTrue : vchFalse);
+
+                    if (opcode == OP_CHECKCRYPTOCONDITIONVERIFY)
+                    {
+                        if (fResult == 1)
+                            popstack(stack);
+                        else
+                            return set_error(serror, SCRIPT_ERR_CRYPTOCONDITION_VERIFY);
+                    }
+                }
+                break;
+
+INTERPRETER_DEFAULT:
                 default:
                     return set_error(serror, SCRIPT_ERR_BAD_OPCODE);
             }

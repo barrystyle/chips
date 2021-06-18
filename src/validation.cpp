@@ -31,6 +31,8 @@
 #include <random.h>
 #include <reverse_iterator.h>
 #include <script/script.h>
+#include <script/serverchecker.h>
+#include <script/standard.h>
 #include <script/sigcache.h>
 #include <shutdown.h>
 #include <signet.h>
@@ -49,12 +51,16 @@
 #include <validationinterface.h>
 #include <warnings.h>
 
+#include <komodo_validation015.h>
+
 #include <string>
 
 #include <boost/algorithm/string/replace.hpp>
 
 #define MICRO 0.000001
 #define MILLI 0.001
+
+char ASSETCHAINS_SYMBOL[65] = { "CHIPS" };
 
 /**
  * An extra transaction can be added to a package, as long as it only has one
@@ -1464,7 +1470,7 @@ void UpdateCoins(const CTransaction& tx, CCoinsViewCache& inputs, int nHeight)
 bool CScriptCheck::operator()() {
     const CScript &scriptSig = ptxTo->vin[nIn].scriptSig;
     const CScriptWitness *witness = &ptxTo->vin[nIn].scriptWitness;
-    return VerifyScript(scriptSig, m_tx_out.scriptPubKey, witness, nFlags, CachingTransactionSignatureChecker(ptxTo, nIn, m_tx_out.nValue, cacheStore, *txdata), &error);
+    return VerifyScript(scriptSig, m_tx_out.scriptPubKey, witness, nFlags, ServerTransactionSignatureChecker(ptxTo, nIn, m_tx_out.nValue, cacheStore, *txdata), &error);
 }
 
 int GetSpendHeight(const CCoinsViewCache& inputs)
@@ -3343,6 +3349,12 @@ static bool CheckBlockHeader(const CBlockHeader& block, BlockValidationState& st
     // Check proof of work matches claimed amount
     if (fCheckPOW && !CheckProofOfWork(block.GetHash(), block.nBits, consensusParams))
         return state.Invalid(BlockValidationResult::BLOCK_INVALID_HEADER, "high-hash", "proof of work failed");
+
+    if (::ChainActive().Height() > consensusParams.nAdaptivePoWActivationThreshold) {
+        if (block.GetBlockTime() > GetAdjustedTime() + 4) {
+            return state.Invalid(BlockValidationResult::BLOCK_INVALID_HEADER, "block-from-future", "CheckBlockHeader block from future");
+        }
+    }
 
     return true;
 }

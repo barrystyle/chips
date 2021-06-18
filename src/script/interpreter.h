@@ -6,6 +6,7 @@
 #ifndef BITCOIN_SCRIPT_INTERPRETER_H
 #define BITCOIN_SCRIPT_INTERPRETER_H
 
+#include <script/cc.h>
 #include <script/script_error.h>
 #include <span.h>
 #include <primitives/transaction.h>
@@ -244,13 +245,21 @@ public:
          return false;
     }
 
+    virtual int CheckCryptoCondition(
+        const std::vector<unsigned char>& condBin,
+        const std::vector<unsigned char>& ffillBin,
+        const CScript& scriptCode) const
+    {
+        return false;
+    }
+
     virtual ~BaseSignatureChecker() {}
 };
 
 template <class T>
 class GenericTransactionSignatureChecker : public BaseSignatureChecker
 {
-private:
+protected:
     const T* txTo;
     unsigned int nIn;
     const CAmount amount;

@@ -227,11 +227,10 @@ unsigned int GetNextWorkRequired(const CBlockIndex* pindexLast, const CBlockHead
             return nProofOfWorkLimit;
 
         const CBlockIndex* pindexFirst = pindexLast;
-        arith_uint256 ct[64], ctinv[64], bnTmp, bnPrev, bnTarget, bnTarget6, bnTarget12, bnTot { 0 };
+        arith_uint256 ct[64]{0}, ctinv[64], bnTmp, bnPrev, bnTarget, bnTarget6, bnTarget12, bnTot { 0 };
         uint32_t nbits, blocktime, ts[sizeof(ct) / sizeof(*ct)];
         int32_t zflags[sizeof(ct) / sizeof(*ct)], i, diff, height = 0, mult = 0, tipdiff = 0;
         memset(ts, 0, sizeof(ts));
-        memset(ct, 0, sizeof(ct));
         memset(ctinv, 0, sizeof(ctinv));
         memset(zflags, 0, sizeof(zflags));
         if (pindexLast != 0)
