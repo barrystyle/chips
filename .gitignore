@@ -2,17 +2,17 @@
 
 *.exe
 *.pdb
-src/bitcoin
-src/bitcoind
-src/bitcoin-cli
-src/bitcoin-gui
-src/bitcoin-node
-src/bitcoin-tx
-src/bitcoin-util
-src/bitcoin-wallet
+src/chips
+src/chipsd
+src/chips-cli
+src/chips-gui
+src/chips-node
+src/chips-tx
+src/chips-util
+src/chips-wallet
 src/test/fuzz/fuzz
-src/test/test_bitcoin
-src/qt/test/test_bitcoin-qt
+src/test/test_chips
+src/qt/test/test_chips-qt
 
 # autoreconf
 Makefile.in
@@ -93,7 +93,7 @@ src/qt/bitcoin-qt.includes
 *.qm
 Makefile
 !depends/Makefile
-src/qt/bitcoin-qt
+src/qt/chips-qt
 Bitcoin-Qt.app
 background.tiff*
 

@@ -305,6 +305,7 @@ def get_rpc_proxy(url, node_number, *, timeout=None, coveragedir=None):
     if timeout is not None:
         proxy_kwargs['timeout'] = int(timeout)
 
+    print("Proxy: " + url)
     proxy = AuthServiceProxy(url, **proxy_kwargs)
     proxy.url = url  # store URL on proxy for info
 
@@ -357,11 +358,9 @@ def write_config(config_path, *, n, chain, extra_config=""):
     else:
         chain_name_conf_arg = chain
         chain_name_conf_section = chain
-    with open(config_path, 'w', encoding='utf8') as f:
-        if chain_name_conf_arg:
-            f.write("{}=1\n".format(chain_name_conf_arg))
-        if chain_name_conf_section:
-            f.write("[{}]\n".format(chain_name_conf_section))
+    with open(os.path.join(datadir, "chips.conf"), 'w', encoding='utf8') as f:
+        f.write("{}=1\n".format(chain_name_conf_arg))
+        f.write("[{}]\n".format(chain_name_conf_section))
         f.write("port=" + str(p2p_port(n)) + "\n")
         f.write("rpcport=" + str(rpc_port(n)) + "\n")
         f.write("fallbackfee=0.0002\n")
@@ -385,7 +384,7 @@ def get_datadir_path(dirname, n):
 
 
 def append_config(datadir, options):
-    with open(os.path.join(datadir, "bitcoin.conf"), 'a', encoding='utf8') as f:
+    with open(os.path.join(datadir, "chips.conf"), 'a', encoding='utf8') as f:
         for option in options:
             f.write(option + "\n")
 
@@ -393,8 +392,8 @@ def append_config(datadir, options):
 def get_auth_cookie(datadir, chain):
     user = None
     password = None
-    if os.path.isfile(os.path.join(datadir, "bitcoin.conf")):
-        with open(os.path.join(datadir, "bitcoin.conf"), 'r', encoding='utf8') as f:
+    if os.path.isfile(os.path.join(datadir, "chips.conf")):
+        with open(os.path.join(datadir, "chips.conf"), 'r', encoding='utf8') as f:
             for line in f:
                 if line.startswith("rpcuser="):
                     assert user is None  # Ensure that there is only one rpcuser line
