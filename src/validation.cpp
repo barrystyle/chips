@@ -2521,6 +2521,15 @@ bool CChainState::DisconnectTip(BlockValidationState& state, const CChainParams&
     CBlock& block = *pblock;
     if (!ReadBlockFromDisk(block, pindexDelete, chainparams.GetConsensus()))
         return error("DisconnectTip(): Failed to read block");
+
+    int32_t prevMoMheight; uint256 notarizedhash,txid;
+    komodo_notarized_height(&prevMoMheight,&notarizedhash,&txid);
+    if ( block.GetHash() == notarizedhash )
+    {
+        LogPrintf("DisconnectTip trying to disconnect notarized block at ht.%d\n",(int32_t)pindexDelete->nHeight);
+        return(false);
+    }
+
     // Apply the block atomically to the chain state.
     int64_t nStart = GetTimeMicros();
     {
@@ -3508,6 +3517,8 @@ static bool ContextualCheckBlockHeader(const CBlockHeader& block, BlockValidatio
 {
     assert(pindexPrev != nullptr);
     const int nHeight = pindexPrev->nHeight + 1;
+    uint256 hash = block.GetHash();
+    int32_t notarized_height;
 
     // Check proof of work
     const Consensus::Params& consensusParams = params.GetConsensus();
@@ -3523,6 +3534,16 @@ static bool ContextualCheckBlockHeader(const CBlockHeader& block, BlockValidatio
         if (pcheckpoint && nHeight < pcheckpoint->nHeight) {
             LogPrintf("ERROR: %s: forked chain older than last checkpoint (height %d)\n", __func__, nHeight);
             return state.Invalid(BlockValidationResult::BLOCK_CHECKPOINT, "bad-fork-prior-to-checkpoint");
+        }
+        else if ( komodo_checkpoint(&notarized_height,(int32_t)nHeight,hash) < 0 )
+        {
+            CBlockIndex *heightblock = ::ChainActive()[nHeight];
+            if ( heightblock != 0 && heightblock->GetBlockHash() == hash ) {
+                return true;
+            } else {
+                LogPrintf("ERROR: %s: forked chain %d older than last notarized (height %d) vs %d", __func__,nHeight, notarized_height);
+                return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS, "bad-fork-chain");
+            }
         }
     }
 

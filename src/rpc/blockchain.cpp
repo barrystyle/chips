@@ -7,6 +7,7 @@
 
 #include <amount.h>
 #include <blockfilter.h>
+#include <cc/betprotocol.h>
 #include <chain.h>
 #include <chainparams.h>
 #include <coins.h>
@@ -14,6 +15,7 @@
 #include <core_io.h>
 #include <hash.h>
 #include <index/blockfilterindex.h>
+#include <komodo_rpcblockchain.h>
 #include <node/coinstats.h>
 #include <node/context.h>
 #include <node/utxo_snapshot.h>
@@ -54,6 +56,8 @@ struct CUpdatedBlock
 static Mutex cs_blockchange;
 static std::condition_variable cond_blockchange;
 static CUpdatedBlock latestblock GUARDED_BY(cs_blockchange);
+
+int32_t komodo_dpowconfs(int32_t height,int32_t numconfs);
 
 NodeContext& EnsureNodeContext(const util::Ref& context)
 {
@@ -122,9 +126,12 @@ UniValue blockheaderToJSON(const CBlockIndex* tip, const CBlockIndex* blockindex
 
     UniValue result(UniValue::VOBJ);
     result.pushKV("hash", blockindex->GetBlockHash().GetHex());
-    const CBlockIndex* pnext;
-    int confirmations = ComputeNextBlockAndDepth(tip, blockindex, pnext);
-    result.pushKV("confirmations", confirmations);
+    int confirmations = -1;
+    // Only report confirmations if the block is on the main chain
+    if (::ChainActive().Contains(blockindex))
+        confirmations = ::ChainActive().Height() - blockindex->nHeight + 1;
+    result.pushKV("rawconfirmations", confirmations);
+    result.pushKV("confirmations", komodo_dpowconfs(blockindex->nHeight,confirmations));
     result.pushKV("height", blockindex->nHeight);
     result.pushKV("version", blockindex->nVersion);
     result.pushKV("versionHex", strprintf("%08x", blockindex->nVersion));
@@ -139,6 +146,7 @@ UniValue blockheaderToJSON(const CBlockIndex* tip, const CBlockIndex* blockindex
 
     if (blockindex->pprev)
         result.pushKV("previousblockhash", blockindex->pprev->GetBlockHash().GetHex());
+    CBlockIndex *pnext = ::ChainActive().Next(blockindex);
     if (pnext)
         result.pushKV("nextblockhash", pnext->GetBlockHash().GetHex());
     return result;
@@ -151,9 +159,12 @@ UniValue blockToJSON(const CBlock& block, const CBlockIndex* tip, const CBlockIn
 
     UniValue result(UniValue::VOBJ);
     result.pushKV("hash", blockindex->GetBlockHash().GetHex());
-    const CBlockIndex* pnext;
-    int confirmations = ComputeNextBlockAndDepth(tip, blockindex, pnext);
-    result.pushKV("confirmations", confirmations);
+    int confirmations = -1;
+    // Only report confirmations if the block is on the main chain
+    if (::ChainActive().Contains(blockindex))
+        confirmations = ::ChainActive().Height() - blockindex->nHeight + 1;
+    result.pushKV("rawconfirmations", confirmations);
+    result.pushKV("confirmations", komodo_dpowconfs(blockindex->nHeight,confirmations));
     result.pushKV("strippedsize", (int)::GetSerializeSize(block, PROTOCOL_VERSION | SERIALIZE_TRANSACTION_NO_WITNESS));
     result.pushKV("size", (int)::GetSerializeSize(block, PROTOCOL_VERSION));
     result.pushKV("weight", (int)::GetBlockWeight(block));
@@ -184,6 +195,7 @@ UniValue blockToJSON(const CBlock& block, const CBlockIndex* tip, const CBlockIn
 
     if (blockindex->pprev)
         result.pushKV("previousblockhash", blockindex->pprev->GetBlockHash().GetHex());
+    CBlockIndex *pnext = ::ChainActive().Next(blockindex);
     if (pnext)
         result.pushKV("nextblockhash", pnext->GetBlockHash().GetHex());
     return result;

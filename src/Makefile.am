@@ -102,7 +102,7 @@ if BUILD_BITCOIN_TX
 endif
 if ENABLE_WALLET
 if BUILD_BITCOIN_WALLET
-  bin_PROGRAMS += chips-wallet
+# bin_PROGRAMS += chips-wallet
 endif
 endif
 
@@ -666,7 +666,7 @@ chips_wallet_SOURCES = bitcoin-wallet.cpp
 chips_wallet_CPPFLAGS = $(chips_bin_cppflags)
 chips_wallet_CXXFLAGS = $(chips_bin_cxxflags)
 chips_wallet_LDFLAGS = $(chips_bin_ldflags)
-chips_wallet_LDADD = $(LIBBITCOIN_WALLET_TOOL) $(chips_bin_ldadd)
+chips_wallet_LDADD = $(LIBBITCOIN_WALLET_TOOL) $(chips_bin_ldadd) $(LIBCRYPTOCONDITIONS)
 
 if TARGET_WINDOWS
 chips_wallet_SOURCES += bitcoin-wallet-res.rc
