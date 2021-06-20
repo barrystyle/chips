@@ -3,6 +3,7 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
+#include <core_io.h>
 #include <httpserver.h>
 #include <index/blockfilterindex.h>
 #include <index/coinstatsindex.h>
@@ -12,6 +13,8 @@
 #include <interfaces/init.h>
 #include <interfaces/ipc.h>
 #include <key_io.h>
+#include <netbase.h>
+#include <net.h>
 #include <node/context.h>
 #include <outputtype.h>
 #include <rpc/blockchain.h>
@@ -19,10 +22,16 @@
 #include <rpc/util.h>
 #include <scheduler.h>
 #include <script/descriptor.h>
+#include <timedata.h>
 #include <util/check.h>
 #include <util/message.h> // For MessageSign(), MessageVerify()
 #include <util/strencodings.h>
 #include <util/system.h>
+#include <util/translation.h>
+#include <validation.h>
+#include <wallet/rpcwallet.h>
+#include <wallet/wallet.h>
+#include <warnings.h>
 
 #include <stdint.h>
 #include <tuple>
@@ -31,6 +40,86 @@
 #endif
 
 #include <univalue.h>
+
+UniValue getinfo(const JSONRPCRequest& request)
+{
+    if (request.fHelp || request.params.size() != 0)
+        throw std::runtime_error(
+            "getinfo\n"
+            "\nDEPRECATED. Returns an object containing various state info.\n"
+            "\nResult:\n"
+            "{\n"
+            "  \"version\": xxxxx,           (numeric) the server version\n"
+            "  \"protocolversion\": xxxxx,   (numeric) the protocol version\n"
+            "  \"walletversion\": xxxxx,     (numeric) the wallet version\n"
+            "  \"balance\": xxxxxxx,         (numeric) the total bitcoin balance of the wallet\n"
+            "  \"blocks\": xxxxxx,           (numeric) the current number of blocks processed in the server\n"
+            "  \"timeoffset\": xxxxx,        (numeric) the time offset\n"
+            "  \"connections\": xxxxx,       (numeric) the number of connections\n"
+            "  \"proxy\": \"host:port\",       (string, optional) the proxy used by the server\n"
+            "  \"difficulty\": xxxxxx,       (numeric) the current difficulty\n"
+            "  \"testnet\": true|false,      (boolean) if the server is using testnet or not\n"
+            "  \"keypoololdest\": xxxxxx,    (numeric) the timestamp (seconds since Unix epoch) of the oldest pre-generated key in the key pool\n"
+            "  \"keypoolsize\": xxxx,        (numeric) how many new keys are pre-generated\n"
+            "  \"unlocked_until\": ttt,      (numeric) the timestamp in seconds since epoch (midnight Jan 1 1970 GMT) that the wallet is unlocked for transfers, or 0 if the wallet is locked\n"
+            "  \"paytxfee\": x.xxxx,         (numeric) the transaction fee set in " + CURRENCY_UNIT + "/kB\n"
+            "  \"relayfee\": x.xxxx,         (numeric) minimum relay fee for transactions in " + CURRENCY_UNIT + "/kB\n"
+            "  \"errors\": \"...\"             (string) any error messages\n"
+            "}\n"
+            "\nExamples:\n"
+            + HelpExampleCli("getinfo", "")
+            + HelpExampleRpc("getinfo", "")
+        );
+
+#ifdef ENABLE_WALLET
+    std::shared_ptr<CWallet> const wallet = GetWalletForJSONRPCRequest(request);
+    if (!wallet) return NullUniValue;
+    CWallet* const pwallet = wallet.get();
+
+    LOCK2(cs_main, pwallet ? &pwallet->cs_wallet : nullptr);
+#else
+    LOCK(cs_main);
+#endif
+
+    NodeContext& node = EnsureNodeContext(request.context);
+    if(!node.connman)
+        throw JSONRPCError(RPC_CLIENT_P2P_DISABLED, "Error: Peer-to-peer functionality missing or disabled");
+
+    CBlockIndex* pindex = ::ChainActive().Tip();
+
+    proxyType proxy;
+    GetProxy(NET_IPV4, proxy);
+
+    UniValue obj(UniValue::VOBJ);
+    obj.pushKV("version", CLIENT_VERSION);
+    obj.pushKV("protocolversion", PROTOCOL_VERSION);
+#ifdef ENABLE_WALLET
+    if (pwallet) {
+        obj.pushKV("walletversion", pwallet->GetVersion());
+        obj.pushKV("balance",       ValueFromAmount(pwallet->GetBalance().m_mine_untrusted_pending));
+    }
+#endif
+    obj.pushKV("blocks",        (int)pindex->nHeight);
+    obj.pushKV("timeoffset",    GetTimeOffset());
+    if (node.connman)
+        obj.pushKV("connections",   (int)node.connman->GetNodeCount(CConnman::CONNECTIONS_ALL));
+    obj.pushKV("proxy",         (proxy.IsValid() ? proxy.proxy.ToStringIPPort() : std::string()));
+    obj.pushKV("difficulty",    (double)GetDifficulty(pindex));
+    obj.pushKV("testnet",       Params().NetworkIDString() == CBaseChainParams::TESTNET);
+#ifdef ENABLE_WALLET
+    if (pwallet) {
+        obj.pushKV("keypoololdest", pwallet->GetOldestKeyPoolTime());
+        obj.pushKV("keypoolsize",   (int)pwallet->GetKeyPoolSize());
+    }
+    if (pwallet && pwallet->IsCrypted()) {
+        obj.pushKV("unlocked_until", pwallet->nRelockTime);
+    }
+    obj.pushKV("paytxfee",      ValueFromAmount(pwallet->m_pay_tx_fee.GetFeePerK()));
+#endif
+    obj.pushKV("relayfee",      ValueFromAmount(::minRelayTxFee.GetFeePerK()));
+    obj.pushKV("errors",        GetWarnings("statusbar").original);
+    return obj;
+}
 
 static RPCHelpMan validateaddress()
 {
