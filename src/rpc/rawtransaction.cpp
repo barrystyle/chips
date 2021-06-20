@@ -42,6 +42,8 @@
 
 #include <univalue.h>
 
+int32_t komodo_dpowconfs(int32_t height,int32_t numconfs);
+
 static void TxToJSON(const CTransaction& tx, const uint256 hashBlock, UniValue& entry, CChainState& active_chainstate)
 {
     // Call into TxToUniv() in bitcoin-common to decode the transaction hex.
@@ -57,15 +59,17 @@ static void TxToJSON(const CTransaction& tx, const uint256 hashBlock, UniValue& 
         entry.pushKV("blockhash", hashBlock.GetHex());
         CBlockIndex* pindex = active_chainstate.m_blockman.LookupBlockIndex(hashBlock);
         if (pindex) {
-            if (active_chainstate.m_chain.Contains(pindex)) {
-                entry.pushKV("confirmations", 1 + active_chainstate.m_chain.Height() - pindex->nHeight);
+            if (::ChainActive().Contains(pindex)) {
+                entry.pushKV("rawconfirmations", 1 + ::ChainActive().Height() - pindex->nHeight);
+                entry.pushKV("confirmations", komodo_dpowconfs(pindex->nHeight,1 + ::ChainActive().Height() - pindex->nHeight));
                 entry.pushKV("time", pindex->GetBlockTime());
                 entry.pushKV("blocktime", pindex->GetBlockTime());
-            }
-            else
+            } else {
                 entry.pushKV("confirmations", 0);
+                entry.pushKV("rawconfirmations", 0);
         }
     }
+}
 }
 
 static RPCHelpMan getrawtransaction()
