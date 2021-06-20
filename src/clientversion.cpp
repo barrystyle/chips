@@ -12,7 +12,7 @@
  * for both chipsd and chips-qt, to make it harder for attackers to
  * target servers or GUI users specifically.
  */
-const std::string CLIENT_NAME("Shibetoshi");
+const std::string CLIENT_NAME("Chiptoshi");
 
 
 #ifdef HAVE_BUILD_INFO
