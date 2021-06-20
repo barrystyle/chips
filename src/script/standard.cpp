@@ -54,6 +54,7 @@ std::string GetTxnOutputType(TxoutType t)
     case TxoutType::PUBKEYHASH: return "pubkeyhash";
     case TxoutType::SCRIPTHASH: return "scripthash";
     case TxoutType::MULTISIG: return "multisig";
+    case TxoutType::CRYPTOCONDITION: return "cryptocondition";
     case TxoutType::NULL_DATA: return "nulldata";
     case TxoutType::WITNESS_V0_KEYHASH: return "witness_v0_keyhash";
     case TxoutType::WITNESS_V0_SCRIPTHASH: return "witness_v0_scripthash";
@@ -184,6 +185,16 @@ TxoutType Solver(const CScript& scriptPubKey, std::vector<std::vector<unsigned c
     // script.
     if (scriptPubKey.size() >= 1 && scriptPubKey[0] == OP_RETURN && scriptPubKey.IsPushOnly(scriptPubKey.begin()+1)) {
         return TxoutType::NULL_DATA;
+    }
+
+    if (IsCryptoConditionsEnabled()) {
+        // Shortcut for pay-to-crypto-condition
+        if (scriptPubKey.IsPayToCryptoCondition()) {
+            if (scriptPubKey.MayAcceptCryptoCondition()) {
+                return TxoutType::CRYPTOCONDITION;
+            }
+            return TxoutType::NONSTANDARD;
+        }
     }
 
     std::vector<unsigned char> data;

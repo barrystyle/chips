@@ -32,7 +32,6 @@
 #include <random.h>
 #include <reverse_iterator.h>
 #include <script/script.h>
-#include <script/serverchecker.h>
 #include <script/standard.h>
 #include <script/sigcache.h>
 #include <shutdown.h>

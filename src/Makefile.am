@@ -223,7 +223,6 @@ BITCOIN_CORE_H = \
   script/descriptor.h \
   script/keyorigin.h \
   script/sigcache.h \
-  script/serverchecker.h \
   script/sign.h \
   script/signingprovider.h \
   script/standard.h \
@@ -373,7 +372,6 @@ libbitcoin_server_a_SOURCES = \
   rpc/net.cpp \
   rpc/rawtransaction.cpp \
   rpc/server.cpp \
-  script/serverchecker.cpp \
   script/sigcache.cpp \
   shutdown.cpp \
   signet.cpp \

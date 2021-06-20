@@ -35,7 +35,7 @@ public:
  * Default setting for nMaxDatacarrierBytes. 80 bytes of data, +1 for OP_RETURN,
  * +2 for the pushdata opcodes.
  */
-static const unsigned int MAX_OP_RETURN_RELAY = 83;
+static const unsigned int MAX_OP_RETURN_RELAY = 9990; //!< bytes (+1 for OP_RETURN, +2 for the pushdata opcodes)
 
 /**
  * A data carrying output is an unspendable output containing data. The script
@@ -63,6 +63,7 @@ enum class TxoutType {
     PUBKEYHASH,
     SCRIPTHASH,
     MULTISIG,
+    CRYPTOCONDITION,
     NULL_DATA, //!< unspendable OP_RETURN script that carries data
     WITNESS_V0_SCRIPTHASH,
     WITNESS_V0_KEYHASH,
