@@ -2472,6 +2472,181 @@ static RPCHelpMan dumptxoutset()
     };
 }
 
+#include "komodo_rpcblockchain.h"
+
+static void MerkleComputation(const std::vector<uint256>& leaves, uint256* proot, bool* pmutated, uint32_t branchpos, std::vector<uint256>* pbranch) {
+    if (pbranch) pbranch->clear();
+    if (leaves.size() == 0) {
+        if (pmutated) *pmutated = false;
+        if (proot) *proot = uint256();
+        return;
+    }
+    bool mutated = false;
+    // count is the number of leaves processed so far.
+    uint32_t count = 0;
+    // inner is an array of eagerly computed subtree hashes, indexed by tree
+    // level (0 being the leaves).
+    // For example, when count is 25 (11001 in binary), inner[4] is the hash of
+    // the first 16 leaves, inner[3] of the next 8 leaves, and inner[0] equal to
+    // the last leaf. The other inner entries are undefined.
+    uint256 inner[32];
+    // Which position in inner is a hash that depends on the matching leaf.
+    int matchlevel = -1;
+    // First process all leaves into 'inner' values.
+    while (count < leaves.size()) {
+        uint256 h = leaves[count];
+        bool matchh = count == branchpos;
+        count++;
+        int level;
+        // For each of the lower bits in count that are 0, do 1 step. Each
+        // corresponds to an inner value that existed before processing the
+        // current leaf, and each needs a hash to combine it.
+        for (level = 0; !(count & (((uint32_t)1) << level)); level++) {
+            if (pbranch) {
+                if (matchh) {
+                    pbranch->push_back(inner[level]);
+                } else if (matchlevel == level) {
+                    pbranch->push_back(h);
+                    matchh = true;
+                }
+            }
+            mutated |= (inner[level] == h);
+            CHash256().Write(inner[level]).Write(h).Finalize(h);
+        }
+        // Store the resulting hash at inner position level.
+        inner[level] = h;
+        if (matchh) {
+            matchlevel = level;
+        }
+    }
+    // Do a final 'sweep' over the rightmost branch of the tree to process
+    // odd levels, and reduce everything to a single top value.
+    // Level is the level (counted from the bottom) up to which we've sweeped.
+    int level = 0;
+    // As long as bit number level in count is zero, skip it. It means there
+    // is nothing left at this level.
+    while (!(count & (((uint32_t)1) << level))) {
+        level++;
+    }
+    uint256 h = inner[level];
+    bool matchh = matchlevel == level;
+    while (count != (((uint32_t)1) << level)) {
+        // If we reach this point, h is an inner value that is not the top.
+        // We combine it with itself (Bitcoin's special rule for odd levels in
+        // the tree) to produce a higher level one.
+        if (pbranch && matchh) {
+            pbranch->push_back(h);
+        }
+        CHash256().Write(h).Write(h).Finalize(h);
+        // Increment count to the value it would have if two entries at this
+        // level had existed.
+        count += (((uint32_t)1) << level);
+        level++;
+        // And propagate the result upwards accordingly.
+        while (!(count & (((uint32_t)1) << level))) {
+            if (pbranch) {
+                if (matchh) {
+                    pbranch->push_back(inner[level]);
+                } else if (matchlevel == level) {
+                    pbranch->push_back(h);
+                    matchh = true;
+                }
+            }
+            CHash256().Write(inner[level]).Write(h).Finalize(h);
+            level++;
+        }
+    }
+    // Return result.
+    if (pmutated) *pmutated = mutated;
+    if (proot) *proot = h;
+}
+
+static std::vector<uint256> ComputeMerkleBranch(const std::vector<uint256>& leaves, uint32_t position) {
+    std::vector<uint256> ret;
+    MerkleComputation(leaves, nullptr, nullptr, position, &ret);
+    return ret;
+}
+
+UniValue txMoMproof(const JSONRPCRequest& request)
+{
+    uint256 hash, notarisationHash, MoM,MoMoM;
+    int32_t notarisedHeight, depth,MoMoMdepth,MoMoMoffset,kmdstarti,kmdendi;
+    CBlockIndex* blockIndex = NULL;
+    std::vector<uint256> branch;
+    int nIndex;
+
+    // parse params and get notarisation data for tx
+    {
+        if (request.fHelp || request.params.size() != 0)
+            throw std::runtime_error("txMoMproof needs a txid");
+
+        hash = uint256S(request.params[0].get_str());
+        if (hash.IsNull()) throw std::runtime_error("invalid txid");
+
+        uint256 blockHash;
+        CTransactionRef txDontNeed = GetTransaction(::ChainActive().Tip(), nullptr, hash, Params().GetConsensus(), blockHash);
+        if (!txDontNeed) throw std::runtime_error("couldnt find tx");
+
+        depth = komodo_MoM(&notarisedHeight, &MoM, &notarisationHash, blockIndex->nHeight, &MoMoM, &MoMoMoffset, &MoMoMdepth, &kmdstarti, &kmdendi);
+        if (!depth) throw std::runtime_error("notarisation not found");
+
+        // index of block in MoM leaves
+        nIndex = notarisedHeight - blockIndex->nHeight;
+    }
+
+    // build merkle chain from blocks to MoM
+    {
+        std::vector<uint256> leaves;
+        for (int i=0; i<depth; i++) {
+            uint256 mRoot = ::ChainActive()[notarisedHeight - i]->hashMerkleRoot;
+            leaves.push_back(mRoot);
+        }
+        branch = ComputeMerkleBranch(leaves, nIndex);
+
+        // Check branch
+        if (MoM != ComputeMerkleRootFromBranch(blockIndex->hashMerkleRoot, branch, nIndex))
+            throw JSONRPCError(RPC_INTERNAL_ERROR, "Failed merkle block->MoM");
+    }
+
+    // Now get the tx merkle branch
+    {
+        CBlock block;
+        if(!ReadBlockFromDisk(block, blockIndex, Params().GetConsensus()))
+            throw JSONRPCError(RPC_INTERNAL_ERROR, "Can't read block from disk");
+
+        // Get txids from block
+        std::vector<uint256> txids;
+        int nTxIndex = -1;
+        for (int i=0; i<(int32_t)block.vtx.size(); i++) {
+            uint256 txid = block.vtx[i]->GetHash();
+            txids.push_back(txid);
+            if (nTxIndex == -1 && hash == txid) nTxIndex = i;
+        }
+
+        if (nTxIndex == -1)
+            throw JSONRPCError(RPC_INTERNAL_ERROR, "Error locating tx in block");
+
+        std::vector<uint256> txBranch = ComputeMerkleBranch(txids, nTxIndex);
+
+        // Check branch
+        if (block.hashMerkleRoot != ComputeMerkleRootFromBranch(hash, txBranch, nTxIndex))
+            throw JSONRPCError(RPC_INTERNAL_ERROR, "Failed merkle tx->block");
+
+        // concatenate branches
+        nIndex = (nIndex << txBranch.size()) + nTxIndex;
+        branch.insert(branch.begin(), txBranch.begin(), txBranch.end());
+    }
+
+    // Check the proof
+    if (MoM != ComputeMerkleRootFromBranch(hash, branch, nIndex)) 
+        throw JSONRPCError(RPC_INTERNAL_ERROR, "Failed validating MoM");
+
+    // Encode and return
+    CDataStream ssProof(SER_NETWORK, PROTOCOL_VERSION);
+    ssProof << MoMProof(nIndex, branch, notarisationHash);
+    return HexStr(ssProof);
+}
+
 void RegisterBlockchainRPCCommands(CRPCTable &t)
 {
 // clang-format off
@@ -2502,6 +2677,9 @@ static const CRPCCommand commands[] =
     { "blockchain",         "preciousblock",          &preciousblock,          {"blockhash"} },
     { "blockchain",         "scantxoutset",           &scantxoutset,           {"action", "scanobjects"} },
     { "blockchain",         "getblockfilter",         &getblockfilter,         {"blockhash", "filtertype"} },
+    { "blockchain",         "txMoMproof",             &txMoMproof,             {"txid"} },
+    { "blockchain",         "calc_MoM",               &calc_MoM,               {"height", "MoMdepth"}  },
+    { "blockchain",         "height_MoM",             &height_MoM,             {"height"}  },
 
     /* Not shown in help */
     { "hidden",             "invalidateblock",        &invalidateblock,        {"blockhash"} },
