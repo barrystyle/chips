@@ -55,6 +55,8 @@ struct CUpdatedBlock
     int height;
 };
 
+NodeContext* g_rpc_node = nullptr;
+
 static Mutex cs_blockchange;
 static std::condition_variable cond_blockchange;
 static CUpdatedBlock latestblock GUARDED_BY(cs_blockchange);
@@ -179,8 +181,8 @@ UniValue blockheaderToJSON(const CBlockIndex* tip, const CBlockIndex* blockindex
     result.pushKV("hash", blockindex->GetBlockHash().GetHex());
     int confirmations = -1;
     // Only report confirmations if the block is on the main chain
-    if (::ChainActive().Contains(blockindex))
-        confirmations = ::ChainActive().Height() - blockindex->nHeight + 1;
+    if (g_rpc_node->chainman->ActiveChain().Contains(blockindex))
+        confirmations = g_rpc_node->chainman->ActiveChain().Height() - blockindex->nHeight + 1;
     result.pushKV("rawconfirmations", confirmations);
     result.pushKV("confirmations", komodo_dpowconfs(blockindex->nHeight,confirmations));
     result.pushKV("height", blockindex->nHeight);
@@ -197,7 +199,7 @@ UniValue blockheaderToJSON(const CBlockIndex* tip, const CBlockIndex* blockindex
 
     if (blockindex->pprev)
         result.pushKV("previousblockhash", blockindex->pprev->GetBlockHash().GetHex());
-    CBlockIndex *pnext = ::ChainActive().Next(blockindex);
+    CBlockIndex *pnext = g_rpc_node->chainman->ActiveChain().Next(blockindex);
     if (pnext)
         result.pushKV("nextblockhash", pnext->GetBlockHash().GetHex());
     return result;
@@ -207,12 +209,11 @@ UniValue blockToJSON(const CBlock& block, const CBlockIndex* tip, const CBlockIn
 {
     UniValue result = blockheaderToJSON(tip, blockindex);
 
-    UniValue result(UniValue::VOBJ);
     result.pushKV("hash", blockindex->GetBlockHash().GetHex());
     int confirmations = -1;
     // Only report confirmations if the block is on the main chain
-    if (::ChainActive().Contains(blockindex))
-        confirmations = ::ChainActive().Height() - blockindex->nHeight + 1;
+    if (g_rpc_node->chainman->ActiveChain().Contains(blockindex))
+        confirmations = g_rpc_node->chainman->ActiveChain().Height() - blockindex->nHeight + 1;
     result.pushKV("rawconfirmations", confirmations);
     result.pushKV("confirmations", komodo_dpowconfs(blockindex->nHeight,confirmations));
     result.pushKV("strippedsize", (int)::GetSerializeSize(block, PROTOCOL_VERSION | SERIALIZE_TRANSACTION_NO_WITNESS));
@@ -239,7 +240,7 @@ UniValue blockToJSON(const CBlock& block, const CBlockIndex* tip, const CBlockIn
 
     if (blockindex->pprev)
         result.pushKV("previousblockhash", blockindex->pprev->GetBlockHash().GetHex());
-    CBlockIndex *pnext = ::ChainActive().Next(blockindex);
+    CBlockIndex *pnext = g_rpc_node->chainman->ActiveChain().Next(blockindex);
     if (pnext)
         result.pushKV("nextblockhash", pnext->GetBlockHash().GetHex());
     return result;
@@ -2740,7 +2741,19 @@ static std::vector<uint256> ComputeMerkleBranch(const std::vector<uint256>& leav
     return ret;
 }
 
-UniValue txMoMproof(const JSONRPCRequest& request)
+
+static RPCHelpMan txMoMproof()
+{
+    return RPCHelpMan{"txMoMproof",
+                "\n",
+                {},
+                RPCResult{
+                    RPCResult::Type::NUM, "", "The current block count"},
+                RPCExamples{
+                    HelpExampleCli("getblockcount", "")
+            + HelpExampleRpc("getblockcount", "")
+                },
+        [&](const RPCHelpMan& self, const JSONRPCRequest& request) -> UniValue
 {
     uint256 hash, notarisationHash, MoM,MoMoM;
     int32_t notarisedHeight, depth,MoMoMdepth,MoMoMoffset,kmdstarti,kmdendi;
@@ -2750,14 +2763,14 @@ UniValue txMoMproof(const JSONRPCRequest& request)
 
     // parse params and get notarisation data for tx
     {
-        if (request.fHelp || request.params.size() != 0)
+        if (request.params.size() != 0)
             throw std::runtime_error("txMoMproof needs a txid");
 
         hash = uint256S(request.params[0].get_str());
         if (hash.IsNull()) throw std::runtime_error("invalid txid");
 
         uint256 blockHash;
-        CTransactionRef txDontNeed = GetTransaction(::ChainActive().Tip(), nullptr, hash, Params().GetConsensus(), blockHash);
+        CTransactionRef txDontNeed = GetTransaction(g_rpc_node->chainman->ActiveChain().Tip(), nullptr, hash, Params().GetConsensus(), blockHash);
         if (!txDontNeed) throw std::runtime_error("couldnt find tx");
 
         depth = komodo_MoM(&notarisedHeight, &MoM, &notarisationHash, blockIndex->nHeight, &MoMoM, &MoMoMoffset, &MoMoMdepth, &kmdstarti, &kmdendi);
@@ -2771,7 +2784,7 @@ UniValue txMoMproof(const JSONRPCRequest& request)
     {
         std::vector<uint256> leaves;
         for (int i=0; i<depth; i++) {
-            uint256 mRoot = ::ChainActive()[notarisedHeight - i]->hashMerkleRoot;
+            uint256 mRoot = g_rpc_node->chainman->ActiveChain()[notarisedHeight - i]->hashMerkleRoot;
             leaves.push_back(mRoot);
         }
         branch = ComputeMerkleBranch(leaves, nIndex);
@@ -2804,20 +2817,106 @@ UniValue txMoMproof(const JSONRPCRequest& request)
         // Check branch
         if (block.hashMerkleRoot != ComputeMerkleRootFromBranch(hash, txBranch, nTxIndex))
             throw JSONRPCError(RPC_INTERNAL_ERROR, "Failed merkle tx->block");
-
         // concatenate branches
         nIndex = (nIndex << txBranch.size()) + nTxIndex;
         branch.insert(branch.begin(), txBranch.begin(), txBranch.end());
     }
 
     // Check the proof
-    if (MoM != ComputeMerkleRootFromBranch(hash, branch, nIndex)) 
+    if (MoM != ComputeMerkleRootFromBranch(hash, branch, nIndex))
         throw JSONRPCError(RPC_INTERNAL_ERROR, "Failed validating MoM");
 
     // Encode and return
     CDataStream ssProof(SER_NETWORK, PROTOCOL_VERSION);
     ssProof << MoMProof(nIndex, branch, notarisationHash);
     return HexStr(ssProof);
+},
+    };
+}
+
+static RPCHelpMan calc_MoM()
+{
+    return RPCHelpMan{"calc_MoM",
+                "\n",
+                {},
+                RPCResult{
+                    RPCResult::Type::NUM, "", "The current block count"},
+                RPCExamples{
+                    HelpExampleCli("getblockcount", "")
+            + HelpExampleRpc("getblockcount", "")
+                },
+        [&](const RPCHelpMan& self, const JSONRPCRequest& request) -> UniValue
+{
+    int32_t height,MoMdepth; uint256 MoM; UniValue ret(UniValue::VOBJ); UniValue a(UniValue::VARR);
+    if ( request.params.size() != 2 )
+        throw std::runtime_error("calc_MoM height MoMdepth\n");
+    LOCK(cs_main);
+    height = atoi(request.params[0].get_str().c_str());
+    MoMdepth = atoi(request.params[1].get_str().c_str());
+    if ( height <= 0 || MoMdepth <= 0 || MoMdepth >= height )
+        throw std::runtime_error("calc_MoM illegal height or MoMdepth\n");
+    //fprintf(stderr,"height_MoM height.%d\n",height);
+    MoM = komodo_calcMoM(height,MoMdepth);
+    ret.pushKV("coin",(char *)(ASSETCHAINS_SYMBOL[0] == 0 ? "KMD" : ASSETCHAINS_SYMBOL));
+    ret.pushKV("height",height);
+    ret.pushKV("MoMdepth",MoMdepth);
+    ret.pushKV("MoM",MoM.GetHex());
+    return ret;
+},
+    };
+}
+
+static RPCHelpMan height_MoM()
+{
+    return RPCHelpMan{"height_MoM",
+                "\n",
+                {},
+                RPCResult{
+                    RPCResult::Type::NUM, "", "The current block count"},
+                RPCExamples{
+                    HelpExampleCli("getblockcount", "")
+            + HelpExampleRpc("getblockcount", "")
+                },
+        [&](const RPCHelpMan& self, const JSONRPCRequest& request) -> UniValue
+{
+    int32_t height,depth,notarized_height,MoMoMdepth,MoMoMoffset,kmdstarti,kmdendi; uint256 MoM,MoMoM,kmdtxid; uint32_t timestamp = 0; UniValue ret(UniValue::VOBJ); UniValue a(UniValue::VARR);
+    if ( request.params.size() != 1 )
+        throw std::runtime_error("height_MoM height\n");
+    LOCK(cs_main);
+    height = atoi(request.params[0].get_str().c_str());
+    if ( height <= 0 )
+    {
+        if ( g_rpc_node->chainman->ActiveChain().Tip() == 0 )
+        {
+            ret.pushKV("error",(char *)"no active chain yet");
+            return(ret);
+        }
+        height = g_rpc_node->chainman->ActiveChain().Height();
+    }
+    //fprintf(stderr,"height_MoM height.%d\n",height);
+    depth = komodo_MoM(&notarized_height,&MoM,&kmdtxid,height,&MoMoM,&MoMoMoffset,&MoMoMdepth,&kmdstarti,&kmdendi);
+    ret.pushKV("coin",(char *)(ASSETCHAINS_SYMBOL[0] == 0 ? "KMD" : ASSETCHAINS_SYMBOL));
+    ret.pushKV("height",height);
+    ret.pushKV("timestamp",(uint64_t)timestamp);
+    if ( depth > 0 )
+    {
+        ret.pushKV("depth",depth);
+        ret.pushKV("notarized_height",notarized_height);
+        ret.pushKV("MoM",MoM.GetHex());
+        ret.pushKV("kmdtxid",kmdtxid.GetHex());
+        if ( ASSETCHAINS_SYMBOL[0] != 0 )
+        {
+            ret.pushKV("MoMoM",MoMoM.GetHex());
+            ret.pushKV("MoMoMoffset",MoMoMoffset);
+            ret.pushKV("MoMoMdepth",MoMoMdepth);
+            ret.pushKV("kmdstarti",kmdstarti);
+            ret.pushKV("kmdendi",kmdendi);
+        }
+    } else ret.pushKV("error",(char *)"no MoM for height");
+
+    return ret;
+},
+    };
 }
 
 void RegisterBlockchainRPCCommands(CRPCTable &t)

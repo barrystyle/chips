@@ -25,6 +25,7 @@ class ChainstateManager;
 class UniValue;
 struct NodeContext;
 
+extern NodeContext* g_rpc_node;
 static constexpr int NUM_GETBLOCKSTATS_PERCENTILES = 5;
 
 /**

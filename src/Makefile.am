@@ -114,7 +114,7 @@ endif
 endif
 
 if BUILD_BITCOIN_UTIL
-  bin_PROGRAMS += bitcoin-util
+  bin_PROGRAMS += chips-util
 endif
 
 .PHONY: FORCE check-symbols check-security
@@ -669,13 +669,13 @@ chips_bin_ldadd = \
 
 chips_bin_ldadd += $(BOOST_LIBS) $(BDB_LIBS) $(MINIUPNPC_LIBS) $(NATPMP_LIBS) $(EVENT_PTHREADS_LIBS) $(EVENT_LIBS) $(ZMQ_LIBS) $(SQLITE_LIBS)
 
-chipsd_SOURCES = $(chips_daemon_sources) init/chipsd.cpp
+chipsd_SOURCES = $(chips_daemon_sources) init/bitcoind.cpp
 chipsd_CPPFLAGS = $(chips_bin_cppflags)
 chipsd_CXXFLAGS = $(chips_bin_cxxflags)
 chipsd_LDFLAGS = $(chips_bin_ldflags)
 chipsd_LDADD = $(LIBBITCOIN_SERVER) $(chips_bin_ldadd)
 
-chips_node_SOURCES = $(chips_daemon_sources) init/chips-node.cpp
+chips_node_SOURCES = $(chips_daemon_sources) init/bitcoin-node.cpp
 chips_node_CPPFLAGS = $(chips_bin_cppflags)
 chips_node_CXXFLAGS = $(chips_bin_cxxflags)
 chips_node_LDFLAGS = $(chips_bin_ldflags)
@@ -735,16 +735,16 @@ endif
 #
 
 # bitcoin-util binary #
-bitcoin_util_SOURCES = bitcoin-util.cpp
-bitcoin_util_CPPFLAGS = $(AM_CPPFLAGS) $(BITCOIN_INCLUDES)
-bitcoin_util_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
-bitcoin_util_LDFLAGS = $(RELDFLAGS) $(AM_LDFLAGS) $(LIBTOOL_APP_LDFLAGS) $(PTHREAD_FLAGS)
+chips_util_SOURCES = bitcoin-util.cpp
+chips_util_CPPFLAGS = $(AM_CPPFLAGS) $(BITCOIN_INCLUDES)
+chips_util_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
+chips_util_LDFLAGS = $(RELDFLAGS) $(AM_LDFLAGS) $(LIBTOOL_APP_LDFLAGS) $(PTHREAD_FLAGS)
 
 if TARGET_WINDOWS
-bitcoin_util_SOURCES += bitcoin-util-res.rc
+chips_util_SOURCES += bitcoin-util-res.rc
 endif
 
-bitcoin_util_LDADD = \
+chips_util_LDADD = \
   $(LIBBITCOIN_COMMON) \
   $(LIBBITCOIN_UTIL) \
   $(LIBUNIVALUE) \
@@ -752,7 +752,7 @@ bitcoin_util_LDADD = \
   $(LIBBITCOIN_CRYPTO) \
   $(LIBSECP256K1)
 
-bitcoin_util_LDADD += $(BOOST_LIBS)
+chips_util_LDADD += $(BOOST_LIBS)
 #
 
 # bitcoinconsensus library #

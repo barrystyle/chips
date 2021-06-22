@@ -9,6 +9,9 @@
 #include "core_io.h"
 #include "validation.h"
 
+#include "node/context.h"
+#include "rpc/blockchain.h"
+
 
 Eval* EVAL_TEST = 0;
 
@@ -63,7 +66,7 @@ bool Eval::GetSpendsConfirmed(uint256 hash, std::vector<CTransactionRef> &spends
 
 bool Eval::GetTxUnconfirmed(const uint256 &hash, CTransactionRef &txOut, uint256 &hashBlock) const
 {
-    txOut = GetTransaction(::ChainActive().Tip(), nullptr, hash, Params().GetConsensus(), hashBlock);
+    txOut = GetTransaction(g_rpc_node->chainman->ActiveChain().Tip(), nullptr, hash, Params().GetConsensus(), hashBlock);
     return txOut != nullptr;
 }
 
@@ -81,14 +84,14 @@ bool Eval::GetTxConfirmed(const uint256 &hash, CTransactionRef &txOut, CBlockInd
 
 unsigned int Eval::GetCurrentHeight() const
 {
-    return ::ChainActive().Height();
+    return g_rpc_node->chainman->ActiveChain().Height();
 }
 
 
 bool Eval::GetBlock(uint256 hash, CBlockIndex& blockIdx) const
 {
-    auto r = g_chainman.BlockIndex().find(hash);
-    if (r != g_chainman.BlockIndex().end()) {
+    auto r = g_rpc_node->chainman->m_blockman.m_block_index.find(hash);
+    if (r != g_rpc_node->chainman->m_blockman.m_block_index.end()) {
         blockIdx = *r->second;
         return true;
     }
@@ -178,7 +181,7 @@ bool NotarisationData::Parse(const CScript scriptPK)
 
         char *nullPos = (char*) memchr(&ss[0], 0, ss.size());
         if (!nullPos) return false;
-        ss.read(symbol, nullPos-&ss[0]+1);
+        ss.read(symbol, ss[0]+1);
 
         if (ss.size() < 36) return false;
         ss >> MoM;

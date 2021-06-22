@@ -43,7 +43,7 @@
 
 UniValue getinfo(const JSONRPCRequest& request)
 {
-    if (request.fHelp || request.params.size() != 0)
+    if (request.params.size() != 0)
         throw std::runtime_error(
             "getinfo\n"
             "\nDEPRECATED. Returns an object containing various state info.\n"
@@ -81,11 +81,11 @@ UniValue getinfo(const JSONRPCRequest& request)
     LOCK(cs_main);
 #endif
 
-    NodeContext& node = EnsureNodeContext(request.context);
+    NodeContext& node = EnsureAnyNodeContext(request.context);
     if(!node.connman)
         throw JSONRPCError(RPC_CLIENT_P2P_DISABLED, "Error: Peer-to-peer functionality missing or disabled");
 
-    CBlockIndex* pindex = ::ChainActive().Tip();
+    CBlockIndex* pindex = g_rpc_node->chainman->ActiveChain().Tip();
 
     proxyType proxy;
     GetProxy(NET_IPV4, proxy);
@@ -102,7 +102,7 @@ UniValue getinfo(const JSONRPCRequest& request)
     obj.pushKV("blocks",        (int)pindex->nHeight);
     obj.pushKV("timeoffset",    GetTimeOffset());
     if (node.connman)
-        obj.pushKV("connections",   (int)node.connman->GetNodeCount(CConnman::CONNECTIONS_ALL));
+        obj.pushKV("connections",   (int)node.connman->GetNodeCount(ConnectionDirection::Both));
     obj.pushKV("proxy",         (proxy.IsValid() ? proxy.proxy.ToStringIPPort() : std::string()));
     {
         int32_t komodo_prevMoMheight();

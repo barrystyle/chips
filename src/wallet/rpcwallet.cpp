@@ -13,6 +13,7 @@
 #include <policy/fees.h>
 #include <policy/policy.h>
 #include <policy/rbf.h>
+#include <rpc/blockchain.h>
 #include <rpc/rawtransaction_util.h>
 #include <rpc/server.h>
 #include <rpc/util.h>
@@ -52,7 +53,7 @@ int32_t komodo_dpowconfs(int32_t height,int32_t numconfs);
 int32_t komodo_blockheight(uint256 hash)
 {
     BlockMap::const_iterator it; CBlockIndex *pindex = 0;
-    if ( (it = g_chainman.BlockIndex().find(hash)) != g_chainman.BlockIndex().end() )
+    if ( (it = g_rpc_node->chainman->m_blockman.m_block_index.find(hash)) != g_rpc_node->chainman->m_blockman.m_block_index.end() )
     {
         if ( (pindex= it->second) != 0 )
             return(pindex->nHeight);
@@ -166,7 +167,6 @@ static void WalletTxToJSON(interfaces::Chain& chain, const CWalletTx& wtx, UniVa
         entry.pushKV("generated", true);
     if (confirms > 0)
     {
-        entry.pushKV("confirmations", komodo_dpowconfs((int32_t)komodo_blockheight(wtx.hashBlock),confirms));
         entry.pushKV("blockhash", wtx.m_confirm.hashBlock.GetHex());
         entry.pushKV("blockheight", wtx.m_confirm.block_height);
         entry.pushKV("blockindex", wtx.m_confirm.nIndex);
@@ -3060,8 +3060,8 @@ static RPCHelpMan listunspent()
         }
 
         int32_t txheight = -1;
-        if (::ChainActive().Tip())
-             txheight = (::ChainActive().Tip()->nHeight - out.nDepth - 1);
+        if (g_rpc_node->chainman->ActiveChain().Tip())
+             txheight = (g_rpc_node->chainman->ActiveChain().Tip()->nHeight - out.nDepth - 1);
 
         entry.pushKV("scriptPubKey", HexStr(scriptPubKey));
         entry.pushKV("amount", ValueFromAmount(out.tx->tx->vout[out.i].nValue));

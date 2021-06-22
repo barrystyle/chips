@@ -13,6 +13,8 @@
  *                                                                            *
  ******************************************************************************/
 
+#include <node/context.h>
+#include <rpc/blockchain.h>
 #include <validation.h>
 #include <wallet/wallet.h>
 
@@ -435,7 +437,7 @@ int32_t gettxout_scriptPubKey(int32_t height,uint8_t *scriptPubKey,int32_t maxsi
     LOCK(cs_main);
     if ( KOMODO_TXINDEX != 0 )
     {
-        CBlockIndex *pindex = ::ChainActive().Tip();
+        CBlockIndex *pindex = g_rpc_node->chainman->ActiveChain().Tip();
 
         if (tx = GetTransaction(pindex, nullptr, txid, Params().GetConsensus(), hashBlock))
         {
@@ -911,21 +913,21 @@ int32_t init_hexbytes_noT(char *hexbytes,unsigned char *message,long len)
 
 uint32_t komodo_chainactive_timestamp()
 {
-    if ( ::ChainActive().Tip() != 0 )
-        return((uint32_t)::ChainActive().Tip()->GetBlockTime());
+    if ( g_rpc_node->chainman->ActiveChain().Tip() != 0 )
+        return((uint32_t)g_rpc_node->chainman->ActiveChain().Tip()->GetBlockTime());
     else return(0);
 }
 
 CBlockIndex *komodo_chainactive(int32_t height)
 {
     CBlockIndex *tipindex;
-    if ( (tipindex= ::ChainActive().Tip()) != 0 )
+    if ( (tipindex= g_rpc_node->chainman->ActiveChain().Tip()) != 0 )
     {
         if ( height <= tipindex->nHeight )
-            return(::ChainActive()[height]);
-        // else fprintf(stderr,"komodo_chainactive height %d > active.%d\n",height,::ChainActive().Tip()->nHeight);
+            return(g_rpc_node->chainman->ActiveChain()[height]);
+        // else fprintf(stderr,"komodo_chainactive height %d > active.%d\n",height,g_rpc_node->chainman->ActiveChain().Tip()->nHeight);
     }
-    //fprintf(stderr,"komodo_chainactive null ::ChainActive().Tip() height %d\n",height);
+    //fprintf(stderr,"komodo_chainactive null g_rpc_node->chainman->ActiveChain().Tip() height %d\n",height);
     return(0);
 }
 
@@ -1216,9 +1218,9 @@ void komodo_notarized_update(int32_t nHeight,int32_t notarized_height,uint256 no
         //decode_hex(NOTARY_PUBKEY33,33,(char *)NOTARY_PUBKEY.c_str());
         pthread_mutex_init(&komodo_mutex,NULL);
 #ifdef _WIN32
-        sprintf(fname,"%s\\notarizations",GetDataDir().string().c_str());
+        sprintf(fname,"%s\\notarizations",gArgs.GetDataDirBase().string().c_str());
 #else
-        sprintf(fname,"%s/notarizations",GetDataDir().string().c_str());
+        sprintf(fname,"%s/notarizations",gArgs.GetDataDirBase().string().c_str());
 #endif
         printf("fname.(%s)\n",fname);
         if ( (fp= fopen(fname,"rb+")) == 0 )
@@ -1293,11 +1295,11 @@ int32_t komodo_checkpoint(int32_t *notarized_heightp,int32_t nHeight,uint256 has
     int32_t notarized_height; uint256 zero,notarized_hash,notarized_desttxid; CBlockIndex *notary; CBlockIndex *pindex;
     memset(&zero,0,sizeof(zero));
     //komodo_notarized_update(0,0,zero,zero,zero,0);
-    if ( (pindex= ::ChainActive().Tip()) == 0 )
+    if ( (pindex= g_rpc_node->chainman->ActiveChain().Tip()) == 0 )
         return(-1);
     notarized_height = komodo_notarizeddata(pindex->nHeight,&notarized_hash,&notarized_desttxid);
     *notarized_heightp = notarized_height;
-    if ( notarized_height >= 0 && notarized_height <= pindex->nHeight && (notary= g_chainman.BlockIndex()[notarized_hash]) != 0 )
+    if ( notarized_height >= 0 && notarized_height <= pindex->nHeight && (notary= g_rpc_node->chainman->m_blockman.m_block_index[notarized_hash]) != 0 )
     {
         //printf("nHeight.%d -> (%d %s)\n",pindex->nHeight,notarized_height,notarized_hash.ToString().c_str());
         if ( notary->nHeight == notarized_height ) // if notarized_hash not in chain, reorg

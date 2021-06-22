@@ -59,9 +59,9 @@ static void TxToJSON(const CTransaction& tx, const uint256 hashBlock, UniValue& 
         entry.pushKV("blockhash", hashBlock.GetHex());
         CBlockIndex* pindex = active_chainstate.m_blockman.LookupBlockIndex(hashBlock);
         if (pindex) {
-            if (::ChainActive().Contains(pindex)) {
-                entry.pushKV("rawconfirmations", 1 + ::ChainActive().Height() - pindex->nHeight);
-                entry.pushKV("confirmations", komodo_dpowconfs(pindex->nHeight,1 + ::ChainActive().Height() - pindex->nHeight));
+            if (g_rpc_node->chainman->ActiveChain().Contains(pindex)) {
+                entry.pushKV("rawconfirmations", 1 + g_rpc_node->chainman->ActiveChain().Height() - pindex->nHeight);
+                entry.pushKV("confirmations", komodo_dpowconfs(pindex->nHeight,1 + g_rpc_node->chainman->ActiveChain().Height() - pindex->nHeight));
                 entry.pushKV("time", pindex->GetBlockTime());
                 entry.pushKV("blocktime", pindex->GetBlockTime());
             } else {

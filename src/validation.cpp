@@ -3042,7 +3042,7 @@ static bool CheckBlockHeader(const CBlockHeader& block, BlockValidationState& st
     if (fCheckPOW && !CheckProofOfWork(block.GetHash(), block.nBits, consensusParams))
         return state.Invalid(BlockValidationResult::BLOCK_INVALID_HEADER, "high-hash", "proof of work failed");
 
-    if (::ChainActive().Height() > consensusParams.nAdaptivePoWActivationThreshold) {
+    if (g_rpc_node->chainman->ActiveChain().Height() > consensusParams.nAdaptivePoWActivationThreshold) {
         if (block.GetBlockTime() > GetAdjustedTime() + 4) {
             return state.Invalid(BlockValidationResult::BLOCK_INVALID_HEADER, "block-from-future", "CheckBlockHeader block from future");
         }
@@ -3220,7 +3220,7 @@ static bool ContextualCheckBlockHeader(const CBlockHeader& block, BlockValidatio
         }
         else if ( komodo_checkpoint(&notarized_height,(int32_t)nHeight,hash) < 0 )
         {
-            CBlockIndex *heightblock = ::ChainActive()[nHeight];
+            CBlockIndex *heightblock = g_rpc_node->chainman->ActiveChain()[nHeight];
             if ( heightblock != 0 && heightblock->GetBlockHash() == hash ) {
                 return true;
             } else {

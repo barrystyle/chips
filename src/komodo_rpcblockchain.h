@@ -17,6 +17,7 @@
 #ifndef komodo_rpcblockchain_h
 #define komodo_rpcblockchain_h
 
+#include <node/context.h>
 #include <rpc/request.h>
 #include <validation.h>
 
@@ -57,65 +58,6 @@ int32_t komodo_MoM(int32_t *notarized_heightp,uint256 *MoMp,uint256 *kmdtxidp,in
         *kmdtxidp = kmdtxid;
     }
     return(depth);
-}
-
-UniValue calc_MoM(const JSONRPCRequest& request)
-{
-    int32_t height,MoMdepth; uint256 MoM; UniValue ret(UniValue::VOBJ); UniValue a(UniValue::VARR);
-    if ( request.params.size() != 2 )
-        throw std::runtime_error("calc_MoM height MoMdepth\n");
-    LOCK(cs_main);
-    height = atoi(request.params[0].get_str().c_str());
-    MoMdepth = atoi(request.params[1].get_str().c_str());
-    if ( height <= 0 || MoMdepth <= 0 || MoMdepth >= height )
-        throw std::runtime_error("calc_MoM illegal height or MoMdepth\n");
-    //fprintf(stderr,"height_MoM height.%d\n",height);
-    MoM = komodo_calcMoM(height,MoMdepth);
-    ret.pushKV("coin",(char *)(ASSETCHAINS_SYMBOL[0] == 0 ? "KMD" : ASSETCHAINS_SYMBOL));
-    ret.pushKV("height",height);
-    ret.pushKV("MoMdepth",MoMdepth);
-    ret.pushKV("MoM",MoM.GetHex());
-    return ret;
-}
-
-UniValue height_MoM(const JSONRPCRequest& request)
-{
-    int32_t height,depth,notarized_height,MoMoMdepth,MoMoMoffset,kmdstarti,kmdendi; uint256 MoM,MoMoM,kmdtxid; uint32_t timestamp = 0; UniValue ret(UniValue::VOBJ); UniValue a(UniValue::VARR);
-    if ( request.params.size() != 1 )
-        throw std::runtime_error("height_MoM height\n");
-    LOCK(cs_main);
-    height = atoi(request.params[0].get_str().c_str());
-    if ( height <= 0 )
-    {
-        if ( ::ChainActive().Tip() == 0 )
-        {
-            ret.pushKV("error",(char *)"no active chain yet");
-            return(ret);
-        }
-        height = ::ChainActive().Tip()->nHeight;
-    }
-    //fprintf(stderr,"height_MoM height.%d\n",height);
-    depth = komodo_MoM(&notarized_height,&MoM,&kmdtxid,height,&MoMoM,&MoMoMoffset,&MoMoMdepth,&kmdstarti,&kmdendi);
-    ret.pushKV("coin",(char *)(ASSETCHAINS_SYMBOL[0] == 0 ? "KMD" : ASSETCHAINS_SYMBOL));
-    ret.pushKV("height",height);
-    ret.pushKV("timestamp",(uint64_t)timestamp);
-    if ( depth > 0 )
-    {
-        ret.pushKV("depth",depth);
-        ret.pushKV("notarized_height",notarized_height);
-        ret.pushKV("MoM",MoM.GetHex());
-        ret.pushKV("kmdtxid",kmdtxid.GetHex());
-        if ( ASSETCHAINS_SYMBOL[0] != 0 )
-        {
-            ret.pushKV("MoMoM",MoMoM.GetHex());
-            ret.pushKV("MoMoMoffset",MoMoMoffset);
-            ret.pushKV("MoMoMdepth",MoMoMdepth);
-            ret.pushKV("kmdstarti",kmdstarti);
-            ret.pushKV("kmdendi",kmdendi);
-        }
-    } else ret.pushKV("error",(char *)"no MoM for height");
-    
-    return ret;
 }
 
 #endif /* komodo_rpcblockchain_h */
