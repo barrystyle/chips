@@ -109,7 +109,7 @@ endif
 
 if ENABLE_WALLET
 if BUILD_BITCOIN_WALLET
-# bin_PROGRAMS += chips-wallet
+ bin_PROGRAMS += chips-wallet
 endif
 endif
 
