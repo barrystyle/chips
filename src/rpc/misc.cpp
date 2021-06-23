@@ -41,7 +41,14 @@
 
 #include <univalue.h>
 
-UniValue getinfo(const JSONRPCRequest& request)
+static RPCHelpMan getinfo()
+{
+    return RPCHelpMan{"getinfo",
+        "\nProvide information about the current blockchain.\n",
+        {},
+        RPCResult{RPCResult::Type::NONE, "", ""},
+        RPCExamples{""},
+        [&](const RPCHelpMan& self, const JSONRPCRequest& request) -> UniValue
 {
     if (request.params.size() != 0)
         throw std::runtime_error(
@@ -130,6 +137,8 @@ UniValue getinfo(const JSONRPCRequest& request)
     obj.pushKV("relayfee",      ValueFromAmount(::minRelayTxFee.GetFeePerK()));
     obj.pushKV("errors",        GetWarnings("statusbar").original);
     return obj;
+},
+    };
 }
 
 static RPCHelpMan validateaddress()
@@ -851,6 +860,7 @@ static const CRPCCommand commands[] =
   //  --------------------- ------------------------
     { "control",            &getmemoryinfo,           },
     { "control",            &logging,                 },
+    { "util",               &getinfo,                 },
     { "util",               &validateaddress,         },
     { "util",               &createmultisig,          },
     { "util",               &deriveaddresses,         },
